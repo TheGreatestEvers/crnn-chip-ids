@@ -117,3 +117,8 @@ venv.bak/
 # ssl key files
 */key/ssl.crt
 */key/ssl.key
+
+# Data
+data_chip_ids/
+runs/
+finetuned_checkpoints/
