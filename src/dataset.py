@@ -1,88 +1,69 @@
-import os
-import glob
+# In file: src/dataset.py
 
+import os
+import pandas as pd
 import torch
 from torch.utils.data import Dataset
-from scipy import signal
-from scipy.io import wavfile
-import cv2
 from PIL import Image
 import numpy as np
+# The 'transform' argument is now accepted. 'torchvision.transforms' will be used here.
 
-
-class Synth90kDataset(Dataset):
-    CHARS = '0123456789abcdefghijklmnopqrstuvwxyz'
-    CHAR2LABEL = {char: i + 1 for i, char in enumerate(CHARS)}
-    LABEL2CHAR = {label: char for char, label in CHAR2LABEL.items()}
-
-    def __init__(self, root_dir=None, mode=None, paths=None, img_height=32, img_width=100):
-        if root_dir and mode and not paths:
-            paths, texts = self._load_from_raw_files(root_dir, mode)
-        elif not root_dir and not mode and paths:
-            texts = None
-
-        self.paths = paths
-        self.texts = texts
+class CustomOCRDataset(Dataset):
+    """
+    Custom Dataset for Optical Character Recognition.
+    Reads image paths and labels from a pandas DataFrame and applies optional transforms.
+    """
+    def __init__(self, df: pd.DataFrame, root_dir: str, chars: str,
+                 img_height=32, img_width=100, transform=None): # <-- ADDED transform=None
+        
+        self.df = df
+        self.root_dir = root_dir
+        self.CHAR2LABEL = {char: i + 1 for i, char in enumerate(chars)}
+        self.LABEL2CHAR = {label: char for char, label in self.CHAR2LABEL.items()}
+        
+        self.paths = self.df['file_name'].values
+        self.texts = self.df['text'].values
+        
         self.img_height = img_height
         self.img_width = img_width
-
-    def _load_from_raw_files(self, root_dir, mode):
-        mapping = {}
-        with open(os.path.join(root_dir, 'lexicon.txt'), 'r') as fr:
-            for i, line in enumerate(fr.readlines()):
-                mapping[i] = line.strip()
-
-        paths_file = None
-        if mode == 'train':
-            paths_file = 'annotation_train.txt'
-        elif mode == 'dev':
-            paths_file = 'annotation_val.txt'
-        elif mode == 'test':
-            paths_file = 'annotation_test.txt'
-
-        paths = []
-        texts = []
-        with open(os.path.join(root_dir, paths_file), 'r') as fr:
-            for line in fr.readlines():
-                path, index_str = line.strip().split(' ')
-                path = os.path.join(root_dir, path)
-                index = int(index_str)
-                text = mapping[index]
-                paths.append(path)
-                texts.append(text)
-        return paths, texts
+        self.transform = transform # <-- STORE THE TRANSFORM
 
     def __len__(self):
-        return len(self.paths)
+        return len(self.df)
 
     def __getitem__(self, index):
-        path = self.paths[index]
+        image_path = os.path.join(self.root_dir, self.paths[index])
+        text = self.texts[index]
 
         try:
-            image = Image.open(path).convert('L')  # grey-scale
+            image = Image.open(image_path).convert('L')
         except IOError:
-            print('Corrupted image for %d' % index)
-            return self[index + 1]
+            print(f'Corrupted image for {image_path}')
+            return self[(index + 1) % len(self)]
 
+        # <-- APPLY TRANSFORMS HERE (if they exist) -->
+        # The transforms are applied to the PIL image before resizing and normalization.
+        if self.transform:
+            image = self.transform(image)
+
+        # Standard processing (resizing, normalization) happens after augmentation
         image = image.resize((self.img_width, self.img_height), resample=Image.BILINEAR)
         image = np.array(image)
+        
         image = image.reshape((1, self.img_height, self.img_width))
-        image = (image / 127.5) - 1.0
-
+        image = (image / 127.5) - 1.0 # Normalize to [-1.0, 1.0]
+        
         image = torch.FloatTensor(image)
-        if self.texts:
-            text = self.texts[index]
-            target = [self.CHAR2LABEL[c] for c in text]
-            target_length = [len(target)]
 
-            target = torch.LongTensor(target)
-            target_length = torch.LongTensor(target_length)
-            return image, target, target_length
-        else:
-            return image
+        target = [self.CHAR2LABEL[c] for c in text]
+        target_length = [len(target)]
+        target = torch.LongTensor(target)
+        target_length = torch.LongTensor(target_length)
 
+        return image, target, target_length
 
-def synth90k_collate_fn(batch):
+# The collate function remains the same
+def ocr_collate_fn(batch):
     images, targets, target_lengths = zip(*batch)
     images = torch.stack(images, 0)
     targets = torch.cat(targets, 0)
