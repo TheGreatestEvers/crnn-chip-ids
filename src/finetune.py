@@ -50,15 +50,22 @@ def finetune():
     # 1. CONFIGURATION
     # =================================================================================
     # --- Paths ---
-    TRAIN_CSV_PATH = '../data_chip_ids/train_df.csv'
-    VAL_CSV_PATH = '../data_chip_ids/val_df.csv'
-    IMAGE_ROOT_DIR = '../data_chip_ids/images/'
+    if torch.cuda.is_available():
+        # Colab
+        TRAIN_CSV_PATH = '/content/drive/MyDrive/crnn/train_df.csv'
+        VAL_CSV_PATH = '/content/drive/MyDrive/crnn/val_df.csv'
+        IMAGE_ROOT_DIR = '/content/drive/MyDrive/crnn/images/'
+    else:
+        # Mac
+        TRAIN_CSV_PATH = '../data_chip_ids/train_df.csv'
+        VAL_CSV_PATH = '../data_chip_ids/val_df.csv'
+        IMAGE_ROOT_DIR = '../data_chip_ids/images/'
     PRETRAINED_MODEL_PATH = '../checkpoints/crnn_synth90k.pt'
     FINETUNED_CHECKPOINTS_DIR = '../finetuned_checkpoints'
     TENSORBOARD_LOG_DIR = '../runs/finetune_crnn' # <-- Path for TensorBoard logs -->
 
     # --- Hyperparameters ---
-    EPOCHS = 400
+    EPOCHS = 1000
     BATCH_SIZE = 16
     LEARNING_RATE = 1e-4
 
@@ -106,8 +113,8 @@ def finetune():
 
     train_transform = transforms.Compose([
         transforms.ColorJitter(brightness=0.2, contrast=0.2),
-        transforms.RandomAffine(degrees=5, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=5),
-        transforms.RandomPerspective(distortion_scale=0.2, p=0.5),
+        #transforms.RandomAffine(degrees=5, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=5),
+        #transforms.RandomPerspective(distortion_scale=0.2, p=0.5),
     ])
 
     train_dataset = CustomOCRDataset(df=train_df, root_dir=IMAGE_ROOT_DIR, chars=CHARS,
