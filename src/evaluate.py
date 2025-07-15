@@ -61,6 +61,7 @@ def evaluate(crnn, dataloader, criterion, label2char_map,
             tot_count += batch_size
             tot_loss += loss.item()
             for pred_text, real_text in zip(preds, reals_unpacked):
+                pred_text = "".join(pred_text)
                 if pred_text == real_text:
                     tot_correct += 1
                 else:
